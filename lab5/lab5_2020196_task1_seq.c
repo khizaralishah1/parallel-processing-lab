@@ -45,10 +45,16 @@ int** multiply_matrix(int** a, int** b, int rows_1, int cols_1, int cols_2) {
 
 	}
 
-	for(int i=0; i < rows_1; ++i) {
-		for(int j=0; j < cols_2; ++j) {
-			for(int k=0; k < cols_1; ++k) {
-				result[i][j] += a[i][k] * b[k][j];
+	#pragma omp parallel for num_threads(6) 
+	{
+		for(int i=0; i < rows_1; ++i) {
+
+			#pragma omp parallel for num_threads(3)
+
+			for(int j=0; j < cols_2; ++j) {
+				for(int k=0; k < cols_1; ++k) {
+					result[i][j] += a[i][k] * b[k][j];
+				}
 			}
 		}
 	}
