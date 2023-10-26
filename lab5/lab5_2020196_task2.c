@@ -1,73 +1,117 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
 
-#include<stdio.h>
-#include<stdlib.h>
-#include<omp.h>
-
-void binary_search(int*arr, int low, int high, int key, int mid)
+int search(int array[], int x, int low, int high)
 {
-	while (low <= high) {
-		if(arr[mid] < key)
-			low = mid + 1;
-		else if (arr[mid] == key) {
-			printf("%d found at location %d.n", key, mid+1);
-			break;
+	if (high >= low)
+	{
+		int mid = low + (high - low) / 2;
+
+		if (array[mid] == x)
+		{
+			return mid;
 		}
-		else
-			high = mid - 1;
-		mid = (low + high)/2;
+
+		int left, right;
+
+#pragma omp task shared(left)
+		left = search(array, x, low, mid - 1);
+
+#pragma omp task shared(right)
+		right = search(array, x, mid + 1, high);
+
+#pragma omp taskwait
+		if (left != -1)
+		{
+			return left;
+		}
+		if (right != -1)
+		{
+			return right;
+		}
 	}
+	return -1;
 }
 
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
-	if (argc < 3)
+	if (argc != 4)
 	{
-		printf("No enough arguments\n");
+		printf("Incorrect Argument Structure!\n");
+		printf("%s <arraySize> <numSearch> <numThreads>\n", argv[0]);
+		exit(1);
 	}
 
-	int low, high, mid;
-	
+	int arraySize = atoi(argv[1]);
+	int numToSearch = atoi(argv[2]);
+	int numThreads = atoi(argv[3]);
 
-	int size = atoi(argv[1]);
-	int key = atoi(argv[2]);
-	int noOfThreads = atoi(argv[3]);
+	int *arr = malloc(arraySize * sizeof(int));
 
-	int arr[size];
-
-
-	for(int i=0;i<size;i++)
+	printf("Generatating an array of size %d\n", arraySize);
+#pragma omp parallel for num_threads(numThreads)
+	for (int i = 0; i < arraySize; i++)
 	{
-     	arr[i]=rand()%100;
+		arr[i] = rand() % 100;
 	}
 
-	printf("Generating array of size %d...\n\n", size);
-	printf("Array is: \n[");
-
-	for(int i = 0; i<size; i++)
+	printf("\n");
+	for (int i = 0; i < arraySize; i++)
 	{
-		printf("%d, ", arr[i]);
+		printf("Array[%d]: %d\n", i, arr[i]);
 	}
 	printf("\n\n");
 
+	printf("Sorting The Array!\n");
 
-	low = 0;
-	high = size - 1;
-	mid = (low+high)/2;
-	
-	#pragma omp parallel
+	int swapped;
+	for (int i = 0; i < arraySize - 1; i++)
 	{
-		#pragma omp sections
+		swapped = 0;
+		for (int j = 0; j < arraySize - i - 1; j++)
 		{
-			#pragma omp section
+			if (arr[j] > arr[j + 1])
 			{
-				binary_search(arr, low, high, key, mid);
+				int temp = arr[j];
+				arr[j] = arr[j + 1];
+				arr[j + 1] = temp;
+				swapped = 1;
 			}
 		}
+		if (swapped == 0)
+		{
+			break;
+		}
 	}
-		
 
-	if(low > high)
-		printf("Not found! %d isn't present in the list.n", key);
+	printf("\n");
+	for (int i = 0; i < arraySize; i++)
+	{
+		printf("Array[%d]: %d\n", i, arr[i]);
+	}
+	printf("\n\n");
 
+	printf("Searching for the number %d...\n", numToSearch);
+	int result;
+
+#pragma omp parallel num_threads(numThreads)
+	{
+#pragma omp single
+		{
+			result = search(arr, numToSearch, 0, arraySize);
+		}
+	}
+
+	if (result == -1)
+	{
+		printf("Number %d is not in array!\n", numToSearch);
+	}
+	else
+	{
+		printf("Number %d found At index: %d\n", numToSearch, result);
+	}
+
+	free(arr);
 	return 0;
 }
